@@ -1,88 +1,138 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
-
 
 class PredatorPreySimulation:
-    def __init__(self, prey_init=100, pred_init=20):
-        """
-        Initialize the predator-prey simulation
-        
-        Parameters:
-        - prey_init: initial prey population
-        - pred_init: initial predator population
-        """
-        # Population parameters
-        self.prey_birth_rate = 0.1      # Prey reproduction rate
-        self.pred_death_rate = 0.05     # Predator death rate
-        self.predation_rate = 0.002     # Rate at which predators eat prey
-        self.pred_efficiency = 0.001    # Efficiency of converting prey to predators
-        
-        # Initialize populations
-        self.time = [0]
-        self.prey_pop = [prey_init]
-        self.pred_pop = [pred_init]
-        
-    def step(self, dt=0.1):
-        """Simulate one time step using differential equations"""
-        prey = self.prey_pop[-1]
-        pred = self.pred_pop[-1]
-        
-        # Lotka-Volterra equations
-        dprey = (self.prey_birth_rate * prey - 
-                 self.predation_rate * prey * pred) * dt
-        dpred = (self.pred_efficiency * prey * pred - 
-                 self.pred_death_rate * pred) * dt
-        
-        # Update populations (ensure non-negative)
-        new_prey = max(0, prey + dprey)
-        new_pred = max(0, pred + dpred)
-        
-        self.prey_pop.append(new_prey)
-        self.pred_pop.append(new_pred)
-        self.time.append(self.time[-1] + dt)
-        
-    def run(self, steps=1000):
-        """Run simulation for a number of steps"""
-        for _ in range(steps):
-            self.step()
+    """
+    A simple predator-prey ecosystem simulation
+    Prey (rabbits) reproduce and get eaten by predators (foxes)
+    """
     
-    def plot(self):
-        """Plot the population dynamics"""
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+    def __init__(self, grid_size=50, num_prey=100, num_predators=20):
+        """Set up the simulation grid and populations"""
+        self.grid_size = grid_size
         
-        # Time series plot
-        ax1.plot(self.time, self.prey_pop, label='Prey', color='green', linewidth=2)
-        ax1.plot(self.time, self.pred_pop, label='Predators', color='red', linewidth=2)
-        ax1.set_xlabel('Time')
-        ax1.set_ylabel('Population')
-        ax1.set_title('Predator-Prey Population Dynamics')
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
+        # Create lists to store positions
+        # Each animal is [x, y, energy]
+        self.prey = []
+        self.predators = []
         
-        # Phase space plot
-        ax2.plot(self.prey_pop, self.pred_pop, color='blue', linewidth=1.5, alpha=0.7)
-        ax2.scatter(self.prey_pop[0], self.pred_pop[0], color='green', s=100, 
-                   label='Start', zorder=5)
-        ax2.scatter(self.prey_pop[-1], self.pred_pop[-1], color='red', s=100, 
-                   label='End', zorder=5)
-        ax2.set_xlabel('Prey Population')
-        ax2.set_ylabel('Predator Population')
-        ax2.set_title('Phase Space (Predator vs Prey)')
-        ax2.legend()
-        ax2.grid(True, alpha=0.3)
+        # Add prey at random positions
+        for _ in range(num_prey):
+            x = np.random.randint(0, grid_size)
+            y = np.random.randint(0, grid_size)
+            self.prey.append([x, y, 10])  # Start with 10 energy
         
-        plt.tight_layout()
-        plt.show()
+        # Add predators at random positions
+        for _ in range(num_predators):
+            x = np.random.randint(0, grid_size)
+            y = np.random.randint(0, grid_size)
+            self.predators.append([x, y, 20])  # Start with 20 energy
+        
+        # Track population over time
+        self.prey_history = []
+        self.predator_history = []
+    
+    def move_animal(self, animal):
+        """Move an animal one step in a random direction"""
+        direction = np.random.randint(0, 4)
+        
+        if direction == 0:  # Up
+            animal[1] = (animal[1] + 1) % self.grid_size
+        elif direction == 1:  # Down
+            animal[1] = (animal[1] - 1) % self.grid_size
+        elif direction == 2:  # Right
+            animal[0] = (animal[0] + 1) % self.grid_size
+        else:  # Left
+            animal[0] = (animal[0] - 1) % self.grid_size
+        
+        # Moving costs energy
+        animal[2] -= 1
+    
+    def step(self):
+        """Run one time step of the simulation"""
+        
+        # Move all prey
+        for prey in self.prey:
+            self.move_animal(prey)
+        
+        # Prey reproduce if they have enough energy
+        new_prey = []
+        for prey in self.prey:
+            if prey[2] > 15 and np.random.random() < 0.1:
+                # Create offspring nearby
+                new_prey.append([prey[0], prey[1], 10])
+                prey[2] -= 5  # Reproduction costs energy
+        self.prey.extend(new_prey)
+        
+        # Move all predators
+        for pred in self.predators:
+            self.move_animal(pred)
+        
+        # Predators hunt prey
+        prey_to_remove = []
+        for pred in self.predators:
+            for i, prey in enumerate(self.prey):
+                # Check if predator and prey are at same location
+                if pred[0] == prey[0] and pred[1] == prey[1]:
+                    pred[2] += 15  # Predator gains energy from eating
+                    prey_to_remove.append(i)
+                    break  # Each predator can only eat once per step
+        
+        # Remove eaten prey (go backwards to avoid index issues)
+        for i in sorted(prey_to_remove, reverse=True):
+            del self.prey[i]
+        
+        # Predators reproduce if they have enough energy
+        new_predators = []
+        for pred in self.predators:
+            if pred[2] > 30 and np.random.random() < 0.05:
+                new_predators.append([pred[0], pred[1], 20])
+                pred[2] -= 10
+        self.predators.extend(new_predators)
+        
+        # Remove animals that ran out of energy (starved)
+        self.prey = [p for p in self.prey if p[2] > 0]
+        self.predators = [p for p in self.predators if p[2] > 0]
+        
+        # Record population sizes
+        self.prey_history.append(len(self.prey))
+        self.predator_history.append(len(self.predators))
+    
+    def run(self, num_steps=500):
+        """Run the simulation for a number of steps"""
+        print("Starting simulation...")
+        print(f"Initial: {len(self.prey)} prey, {len(self.predators)} predators")
+        
+        for step in range(num_steps):
+            self.step()
+            
+            # Print progress every 50 steps
+            if (step + 1) % 50 == 0:
+                print(f"Step {step + 1}: {len(self.prey)} prey, {len(self.predators)} predators")
+            
+            # Stop if either population dies out
+            if len(self.prey) == 0 or len(self.predators) == 0:
+                print(f"Simulation ended at step {step + 1}")
+                break
+        
+        print("\nSimulation complete!")
+        self.print_results()
+    
+    def print_results(self):
+        """Print a simple text-based graph of populations"""
+        print("\nPopulation History:")
+        print("-" * 60)
+        
+        max_pop = max(max(self.prey_history), max(self.predator_history))
+        
+        for i in range(0, len(self.prey_history), 10):
+            # Scale populations to fit in 30 characters
+            prey_bar = int((self.prey_history[i] / max_pop) * 30)
+            pred_bar = int((self.predator_history[i] / max_pop) * 30)
+            
+            print(f"Step {i:3d} | Prey: {'#' * prey_bar} ({self.prey_history[i]})")
+            print(f"        | Pred: {'*' * pred_bar} ({self.predator_history[i]})")
+            print()
 
 # Run the simulation
-if __name__ == "__main__":
-    # Create and run simulation
-    sim = PredatorPreySimulation(prey_init=100, pred_init=20)
-    sim.run(steps=2000)
-    sim.plot()
-    
-    print(f"Final prey population: {sim.prey_pop[-1]:.1f}")
-    print(f"Final predator population: {sim.pred_pop[-1]:.1f}")
-
-
+sim = PredatorPreySimulation(grid_size=50, num_prey=100, num_predators=20)
+sim.run(num_steps=300)
