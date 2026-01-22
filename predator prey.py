@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
+
 class PredatorPreySimulation:
     def __init__(self, prey_init=100, pred_init=20):
         """
@@ -83,3 +84,5 @@ if __name__ == "__main__":
     
     print(f"Final prey population: {sim.prey_pop[-1]:.1f}")
     print(f"Final predator population: {sim.pred_pop[-1]:.1f}")
+
+
